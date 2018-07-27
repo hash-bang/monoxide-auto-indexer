@@ -105,15 +105,15 @@ var cleanIndexes = function(options, finish) {
 * @returns {function} Monoxide compatible plugin function
 *
 * @emits autoIndexer.query Fired as (indexes) whenever a query is initiated from a model and the indexable fields have been extracted
-* @emits autoIndexer.build Fired as (index, mongoIndexes) whenever an index is about to be created
+* @emits autoIndexer.build Fired as (index, mongoSpec) whenever an index is about to be created
 */
 module.exports = function(options) {
 	var settings = _.defaults(options, {
-		sortIndexes: false,
+		modelFilter: model => true,
 		indexThrottle: 1000 * 60, // Every 1m
 		indexResetOnBuild: true,
 		ignoreCreateErrors: false,
-		modelFilter: model => true,
+		sortIndexes: false,
 	});
 
 	return function(finish, monoxide) {

@@ -243,7 +243,9 @@ module.exports = {
 
 	// initPlugin {{{
 	initPlugin: function(finish) {
-		monoxide.use(monoxideAutoIndexer(), finish);
+		monoxide.use(monoxideAutoIndexer({
+			sortIndexes: true,
+		}), finish);
 	},
 	// }}}
 

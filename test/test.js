@@ -222,4 +222,30 @@ describe('monoxide-auto-indexer', function() {
 			});
 	});
 
+
+	it('should clean up indexes based on usage', function(done) {
+		this.timeout(5 * 1000);
+
+		var hookCalls = {'autoIndexer.clean': []};
+		monoxide.models.users
+			.hook('autoIndexer.clean', (hookDone, index) => {
+				hookCalls['autoIndexer.clean'].push(index);
+				hookDone();
+			})
+
+		monoxide
+			.cleanIndexes(err => {
+				expect(err).to.not.be.ok;
+				expect(hookCalls['autoIndexer.clean'].map(c => c.id)).to.deep.equal([
+					'users.name',
+					'users.{name,role}',
+					'users.-name',
+					'users.role',
+					'users.mostPurchased.0.number',
+				]);
+
+				done();
+			})
+	});
+
 });

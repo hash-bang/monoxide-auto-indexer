@@ -10,7 +10,7 @@ monoxide
 	.connect('mongodb://localhost/monoxide-test')
 	.use(monoxideAutoIndexer())
 	.models.users.hook('autoIndexer.build', (hookDone, index) => {
-		console.log('Created index, index);
+		console.log('Created index', index);
 		hookDone();
 	});
 ```

@@ -1,6 +1,6 @@
 Monoxide-Auto-Indexer
 =====================
-Plugin for Monoxide to automatically manage MongoDB indexes.
+Plugin for [Monoxide](https://github.com/hash-bang/Monoxide) to automatically manage MongoDB indexes.
 
 ```javascript
 var monoxide = require('monoxide');

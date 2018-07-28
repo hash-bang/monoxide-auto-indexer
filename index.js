@@ -211,8 +211,6 @@ module.exports = function(options) {
 					});
 			}));
 
-		return finish();
+		if (_.isFunction(finish)) return finish();
 	};
 };
-
-

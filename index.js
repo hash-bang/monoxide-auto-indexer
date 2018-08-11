@@ -1,5 +1,6 @@
 var _ = require('lodash');
 var async = require('async-chainable');
+var debug = require('debug')('monoxide-auto-indexer');
 var monoxide = require('monoxide');
 
 
@@ -7,7 +8,7 @@ var monoxide = require('monoxide');
 * Function to clean up unused indexes
 * @param {Object} [options] Optional settings to pass to the cleaner
 * @param {function} [options.modelFilter=()=>true] Function to filter collections / models - by default all are used
-* @param {function} [options.indexFilter] Filter for indexes, by default this omits only `_id` fields
+* @param {array|function} [options.indexFilter] Function (or array of functions) filter for indexes, by default this omits only `_id` fields and skips manually specified indexes if `ignoreManualSpec` is true
 * @param {boolean} [options.dryRun=false] Dont actually remove indexes, just report on what would be removed
 * @param {number} [options.hitMin=100] The minimum number of hits for an index to be retained
 * @param {function} [finish] Optional callback to call when cleaning completes
@@ -23,8 +24,25 @@ var cleanIndexes = function(options, finish) {
 
 	var settings = _.defaults(options, {
 		modelFilter: model => true,
-		indexFilter: index => ! _.isEqual(_.keys(index.spec), ['_id']),
+		indexFilter: [
+			index => ! _.isEqual(_.keys(index.spec), ['_id']), // Ignore _id fields
+			index => {
+				if (!settings.ignoreManualSpec) return true; // Manual spec ignore is disabled - assume passthrough
+
+				var indexMeta = _.get(index.meta, index.path);
+				if (!indexMeta) {
+					debug('Cannot find path spec for', index.path, 'in model', index.model.$collection, 'when cleaning indexes, assuming this can be removed');
+					return true;
+				} else if (indexMeta.index) {
+					debug('Filtering out manually indexed path', index.id);
+					return false;
+				} else { // Cannot find a meta spec and its not manually specified, consider this for cleaning
+					return true;
+				}
+			},
+		],
 		ignoreErrors: true,
+		ignoreManualSpec: true,
 		dryRun: false,
 		hitMin: 100,
 	});
@@ -44,6 +62,7 @@ var cleanIndexes = function(options, finish) {
 								? (_.isEqual(_.values(i.key), [-1]) ? '-' : '') + _.keys(i.key)[0]
 								: '{' + _(i.key).map((v, k) => v == 1 ? k : '-' + k).join(',') + '}'
 						),
+					path: _(i.key).keys().first(),
 					model: model,
 					spec: i.key,
 					hits: i.accesses.ops,
@@ -61,13 +80,47 @@ var cleanIndexes = function(options, finish) {
 			);
 		})
 		// }}}
+		// Extract meta information about model (if settings.ugnoreManualSpec) {{{
+		.then(function(next) {
+			if (!settings.ignoreManualSpec) return next();
+
+			async()
+				.set('meta', {})
+				.set('models', _(this.indexes) // Prepare a list of models we need to examine
+					.map(i => i.model)
+					.uniqBy(i => i.$collection)
+					.value()
+				)
+				// Ask each model for its meta spec {{{
+				.forEach('models', function(next, model) {
+					model.meta({$indexes: true}, (err, meta) => {
+						if (err) return next(err);
+						this.meta[model.$collection] = meta;
+						next();
+					});
+				})
+				// }}}
+				// Glue the meta information to the index {{{
+				.forEach(this.indexes, function(next, index) {
+					index.meta = this.meta[index.model.$collection];
+					next();
+				})
+				// }}}
+				.end(next);
+		})
+		// }}}
 		// Apply filters {{{
 		.then('indexes', function(next) {
 			next(null, this.indexes
 				// Filter by settings.indexFilter {{{
 				.filter(i => {
-					if (settings.indexFilter) return settings.indexFilter.call(i, i);
-					return true;
+					if (settings.indexFilter && _.isFunction(settings.indexFilter)) {
+						return settings.indexFilter.call(i, i);
+					} else if (settings.indexFilter && _.isArray(settings.indexFilter)) {
+						return settings.indexFilter.every(test => test.call(i, i));
+					} else { // No filters - assume true
+						return true;
+					}
 				})
 				// }}}
 				// Filter by hits {{{

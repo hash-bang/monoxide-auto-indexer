@@ -54,3 +54,8 @@ This function can take the following settings:
 
 
 Emits `autoIndexer.clean` with the single argument being the index that will be removed.
+
+
+DEBUGGING
+=========
+Enable the `DEBUG=monoxide-auto-indexer` flag to see verbose information about keys being cleaned.

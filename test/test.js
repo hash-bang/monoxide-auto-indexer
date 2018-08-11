@@ -223,7 +223,7 @@ describe('monoxide-auto-indexer', function() {
 	});
 
 
-	it('should clean up indexes based on usage', function(done) {
+	it('should clean up indexes based on usage (skipping manual index specs)', function(done) {
 		this.timeout(5 * 1000);
 
 		var hookCalls = {'autoIndexer.clean': []};
@@ -240,7 +240,7 @@ describe('monoxide-auto-indexer', function() {
 					'users.name',
 					'users.{name,role}',
 					'users.-name',
-					'users.role',
+					// 'users.role', // Should not contain this as its manually specified
 					'users.mostPurchased.0.number',
 				]);
 

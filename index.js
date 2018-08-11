@@ -11,8 +11,11 @@ var monoxide = require('monoxide');
 * @param {array|function} [options.indexFilter] Function (or array of functions) filter for indexes, by default this omits only `_id` fields and skips manually specified indexes if `ignoreManualSpec` is true
 * @param {boolean} [options.dryRun=false] Dont actually remove indexes, just report on what would be removed
 * @param {number} [options.hitMin=100] The minimum number of hits for an index to be retained
+* @param {boolean} [options.ignoreErrors=true] Dont return a callback for index removal errors
+* @param {boolean} [options.ignoreManualSpec=true] Dont try to clean indexes where the schema manually specifies that `{index:true}` or some variation thereof
 * @param {function} [finish] Optional callback to call when cleaning completes
 *
+* @emits autoIndexer.consider Fired as (indexs) when a list of indexes to consider is available
 * @emits autoIndexer.clean Fired as (index) when an index is cleaned based on the cleaning criteria
 */
 var cleanIndexes = function(options, finish) {
@@ -109,6 +112,11 @@ var cleanIndexes = function(options, finish) {
 				.end(next);
 		})
 		// }}}
+		// Fire emitter about indexes we found {{{
+		.then(function(next) {
+			monoxide.fire('autoIndexer.consider', next, this.indexes);
+		})
+		// }}}
 		// Apply filters {{{
 		.then('indexes', function(next) {
 			next(null, this.indexes
@@ -134,7 +142,7 @@ var cleanIndexes = function(options, finish) {
 		// }}}
 		// Remove the candidate indexes {{{
 		.forEach('indexes', function(next, index) {
-			index.model.fire('autoIndexer.clean', ()=> {}, index);
+			monoxide.fire('autoIndexer.clean', ()=> {}, index);
 			if (settings.dryRun) return next();
 			index.model.$mongoModel.dropIndex(index.spec, (err) => {
 				if (settings.ignoreErrors) return next();
@@ -264,6 +272,6 @@ module.exports = function(options) {
 					});
 			}));
 
-		if (_.isFunction(finish)) return finish();
+		finish();
 	};
 };

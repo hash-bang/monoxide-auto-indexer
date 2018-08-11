@@ -227,7 +227,7 @@ describe('monoxide-auto-indexer', function() {
 		this.timeout(5 * 1000);
 
 		var hookCalls = {'autoIndexer.clean': []};
-		monoxide.models.users
+		monoxide
 			.hook('autoIndexer.clean', (hookDone, index) => {
 				hookCalls['autoIndexer.clean'].push(index);
 				hookDone();

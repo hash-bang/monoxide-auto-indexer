@@ -41,7 +41,7 @@ describe('monoxide-auto-indexer', function() {
 				hookCalls['autoIndexer.query'] = indexes;
 				hookDone();
 			})
-			.hook('autoIndexer.build', (hookDone, index, mongoSpec) => {
+			.hook('autoIndexer.build', (hookDone, model, index, mongoSpec) => {
 				hookCalls['autoIndexer.build'] = {index, mongoSpec};
 				hookDone();
 			})
@@ -101,7 +101,7 @@ describe('monoxide-auto-indexer', function() {
 				hookCalls['autoIndexer.query'] = indexes;
 				hookDone();
 			})
-			.hook('autoIndexer.build', (hookDone, index, mongoSpec) => {
+			.hook('autoIndexer.build', (hookDone, model, index, mongoSpec) => {
 				hookCalls['autoIndexer.build'] = {index, mongoSpec};
 				hookDone();
 			})
@@ -139,7 +139,7 @@ describe('monoxide-auto-indexer', function() {
 				hookCalls['autoIndexer.query'] = indexes;
 				hookDone();
 			})
-			.hook('autoIndexer.build', (hookDone, index, mongoSpec) => {
+			.hook('autoIndexer.build', (hookDone, model, index, mongoSpec) => {
 				hookCalls['autoIndexer.build'] = {index, mongoSpec};
 				hookDone();
 			})
@@ -179,7 +179,7 @@ describe('monoxide-auto-indexer', function() {
 				hookCalls['autoIndexer.query'] = indexes;
 				hookDone();
 			})
-			.hook('autoIndexer.build', _.once((a, index) => done(`should not actually build anything - index should have been created in previous step. Asked to build [${index}]`)))
+			.hook('autoIndexer.build', _.once((a, model, index) => done(`should not actually build anything - index should have been created in previous step. Asked to build [${index}]`)))
 			.find({role: 'user'})
 			.sort('name')
 			.exec(function(err, res) {
@@ -201,7 +201,7 @@ describe('monoxide-auto-indexer', function() {
 				hookCalls['autoIndexer.query'] = indexes;
 				hookDone();
 			})
-			.hook('autoIndexer.build', (hookDone, index, mongoSpec) => {
+			.hook('autoIndexer.build', (hookDone, model, index, mongoSpec) => {
 				hookCalls['autoIndexer.build'] = {index, mongoSpec};
 				hookDone();
 			})

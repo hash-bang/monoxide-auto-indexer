@@ -166,7 +166,8 @@ var cleanIndexes = function(options, finish) {
 * @returns {function} Monoxide compatible plugin function
 *
 * @emits autoIndexer.query Fired as (indexes) whenever a query is initiated from a model and the indexable fields have been extracted
-* @emits autoIndexer.build Fired as (index, mongoSpec) whenever an index is about to be created
+* @emits autoIndexer.build Fired as (model, index, mongoSpec) whenever an index is about to be created
+* @emits autoIndexer.postBuild Fired as (model, index, mongoSpec, err) whenever an index has been created
 */
 module.exports = function(options) {
 	var settings = _.defaults(options, {
@@ -185,34 +186,69 @@ module.exports = function(options) {
 			.pickBy((modelSpec, id) => settings.modelFilter(id))
 			.forEach(model => model.hook('query', (done, q) => {
 				async()
-					// Determine indexes {{{
-					.then('indexes', function(next) {
-						var indexes = [];
+					.parallel({
+						// Determine indexes {{{
+						indexes: function(next) {
+							var indexes = [];
 
-						// Query fields {{{
-						var fields = _(q)
-							.pickBy((criteria, field) => !field.startsWith('$'))
-							.keys()
-							.value();
-
-						if (fields.length) indexes.push(fields);
-						// }}}
-						// Sort {{{
-						if (q.$sort) indexes.push(q.$sort);
-						// }}}
-
-						if (!indexes.length) return next('SKIP');
-
-						// Sort all index collections {{{
-						if (settings.sortIndexes) {
-							indexes = _(indexes)
-								.map(i => i.sort())
-								.sortBy(i => i.join(','))
+							// Query fields {{{
+							var fields = _(q)
+								.pickBy((criteria, field) => !field.startsWith('$'))
+								.keys()
 								.value();
-						}
-						// }}}
 
-						next(null, indexes);
+							if (fields.length) indexes.push(fields);
+							// }}}
+							// Sort {{{
+							if (q.$sort) indexes.push(q.$sort);
+							// }}}
+
+							if (!indexes.length) return next('SKIP');
+
+							// Sort all index collections {{{
+							if (settings.sortIndexes) {
+								indexes = _(indexes)
+									.map(i => i.sort())
+									.sortBy(i => i.join(','))
+									.value();
+							}
+							// }}}
+
+							next(null, indexes);
+						},
+						// }}}
+						// Scoop existing indexes (with a throttle) {{{
+						existingIndexes: function(next) {
+							if (!model.aiIndexCache || model.aiIndexCache.created < Date.now() - settings.indexThrottle) { // Query indexes now
+								model.getIndexes((err, indexes) => {
+									if (err) return next(err);
+									model.aiIndexCache = {
+										created: Date.now(),
+										indexes,
+									};
+									next(null, indexes);
+								});
+							} else { // Use existing index cache
+								next(null, model.aiIndexCache.indexes);
+							}
+						},
+						// }}}
+						// Ask for model spec {{{
+						meta: function(next) {
+							model.meta(next);
+						},
+						// }}}
+					})
+					// Filter indexes for ones that make absolutely no sense - such as arrays or objects {{{
+					.then('indexes', function(next) {
+						return next(null,
+							this.indexes
+								.filter(indexes => indexes.every(index => {
+									var spec = this.meta[index];
+									if (!spec) return true; // Cannot find a spec object
+									return (!['object', 'array'].includes(spec.type)) // Only return if the index type is not on a blacklist
+								}))
+						);
 					})
 					// }}}
 					// Fire event autoIndexer.query {{{
@@ -220,45 +256,43 @@ module.exports = function(options) {
 						model.fire('autoIndexer.query', ()=> next(), this.indexes);
 					})
 					// }}}
-					// Scoop existing indexes (with a throttle) {{{
-					.then('existingIndexes', function(next) {
-						// FIXME: The caching function here doesn't seem to be working - MC 2018-07-26
-						if (!model.aiIndexCache || model.aiIndexCache.created < Date.now() - settings.indexThrottle) { // Query indexes now
-							model.getIndexes((err, indexes) => {
-								if (err) return next(err);
-								model.aiIndexCache = {
-									created: Date.now(),
-									indexes,
-								};
-								next(null, indexes);
-							});
-						} else { // Use existing index cache
-							next(null, model.aiIndexCache.indexes);
-						}
-					})
-					// }}}
 					// Create the missing indexes {{{
 					.forEach('indexes', function(next, index) {
-						// Build Mongo's Object style index spec
 						var mongoSpec = _(index)
 							.mapKeys()
 							.mapValues(k => k.startsWith('-') ? -1 : 1)
 							.mapKeys((v, k) => _.trimStart(k, '-'))
-							.value()
+							.value();
 
-						if (!this.existingIndexes.some(i => _.isEqual(i.key, mongoSpec))) {
-							model.fire('autoIndexer.build', function(err) {
-								if (err) return next(err);
-								model.$mongoModel.createIndex(mongoSpec, function(err) {
-									if (settings.ignoreCreateErrors) return next();
-									if (err) return next(err);
-									if (settings.indexResetOnBuild) delete model.aiIndexCache; // Remove cached indexes when adding an index
-									next();
-								});
-							}, index, mongoSpec);
-						} else { // Index already exists - skip
-							next();
-						}
+						var isExisting = this.existingIndexes.some(i => _.isEqual(i.key, mongoSpec))
+
+						if (isExisting) return next();
+
+						async()
+							// Fire: autoIndexer.preBuild {{{
+							.then(function(next) {
+								model.fire('autoIndexer.build', ()=> next(), model, index, mongoSpec);
+							})
+							// }}}
+							// Create the index {{{
+							.then('buildResult', function(next) {
+								model.$mongoModel.createIndex(mongoSpec) // For some reason createIndex() doesn't return an error to the callback so we have to use promises
+									.then(()=> {
+										if (settings.indexResetOnBuild) delete model.aiIndexCache; // Remove cached indexes when adding an index
+										next();
+									})
+									.catch(err => {
+										if (settings.ignoreCreateErrors) return next();
+										return next(null, err.toString()); // Pass error as parameter return so the postBuild hook can read it
+									});
+							})
+							// }}}
+							// Fire: autoIndexer.preBuild {{{
+							.then(function(next) {
+								model.fire('autoIndexer.postBuild', next, model, index, mongoSpec, this.buildResult);
+							})
+							// }}}
+							.end(next);
 					})
 					// }}}
 					.end(function(err) {

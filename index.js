@@ -243,7 +243,7 @@ module.exports = function(options) {
 					.then('indexes', function(next) {
 						return next(null,
 							this.indexes
-								.filter(indexes => indexes.every(index => {
+								.filter(indexes => _.castArray(indexes).every(index => {
 									var spec = this.meta[index];
 									if (!spec) return true; // Cannot find a spec object
 									return (!['object', 'array'].includes(spec.type)) // Only return if the index type is not on a blacklist

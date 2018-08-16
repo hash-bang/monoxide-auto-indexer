@@ -83,7 +83,7 @@ var cleanIndexes = function(options, finish) {
 			);
 		})
 		// }}}
-		// Extract meta information about model (if settings.ugnoreManualSpec) {{{
+		// Extract meta information about model (if settings.ignoreManualSpec) {{{
 		.then(function(next) {
 			if (!settings.ignoreManualSpec) return next();
 
@@ -246,7 +246,7 @@ module.exports = function(options) {
 								.filter(indexes => _.castArray(indexes).every(index => {
 									var spec = this.meta[index];
 									if (!spec) return true; // Cannot find a spec object
-									return (!['object', 'array'].includes(spec.type)) // Only return if the index type is not on a blacklist
+									return spec.type && ['string', 'number', 'date', 'boolean', 'objectid'].includes(spec.type); // Only return if the index type is not on a blacklist
 								}))
 						);
 					})

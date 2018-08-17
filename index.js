@@ -158,6 +158,7 @@ var cleanIndexes = function(options, finish) {
 /**
 * Factory function to create a autoIndexer instance populated with settings
 * @param {Object} [options] Optional settings to pass to the plugin
+* @param {boolean} [options.dryRun=false] Dont actually create indexes, just act as if we did
 * @param {function} [options.modelFilter=()=>true] Function to filter collections / models - by default all are used
 * @param {number} [options.indexThrottle=1000*60] How often in milliseconds to throttle index queries
 * @param {boolean} [options.indexResetOnBuild=true] Whether to reset the index cache when building a new index
@@ -171,6 +172,7 @@ var cleanIndexes = function(options, finish) {
 */
 module.exports = function(options) {
 	var settings = _.defaults(options, {
+		dryRun: false,
 		modelFilter: model => true,
 		indexThrottle: 1000 * 60, // Every 1m
 		indexResetOnBuild: true,
@@ -276,15 +278,20 @@ module.exports = function(options) {
 							// }}}
 							// Create the index {{{
 							.then('buildResult', function(next) {
-								model.$mongoModel.createIndex(mongoSpec) // For some reason createIndex() doesn't return an error to the callback so we have to use promises
-									.then(()=> {
-										if (settings.indexResetOnBuild) delete model.aiIndexCache; // Remove cached indexes when adding an index
-										next();
-									})
-									.catch(err => {
-										if (settings.ignoreCreateErrors) return next();
-										return next(null, err.toString()); // Pass error as parameter return so the postBuild hook can read it
-									});
+								if (settings.dryRun) { // Dry run - don't actually do anything
+									if (settings.indexResetOnBuild) delete model.aiIndexCache; // Remove cached indexes when adding an index
+									next();
+								} else { // Actually create the index
+									model.$mongoModel.createIndex(mongoSpec) // For some reason createIndex() doesn't return an error to the callback so we have to use promises
+										.then(()=> {
+											if (settings.indexResetOnBuild) delete model.aiIndexCache; // Remove cached indexes when adding an index
+											next();
+										})
+										.catch(err => {
+											if (settings.ignoreCreateErrors) return next();
+											return next(null, err.toString()); // Pass error as parameter return so the postBuild hook can read it
+										});
+								}
 							})
 							// }}}
 							// Fire: autoIndexer.preBuild {{{
@@ -295,6 +302,7 @@ module.exports = function(options) {
 							.end(next);
 					})
 					// }}}
+					// End {{{
 					.end(function(err) {
 						if (err && err === 'SKIP') {
 							done();
@@ -304,6 +312,7 @@ module.exports = function(options) {
 							done();
 						}
 					});
+					// }}}
 			}));
 
 		finish();

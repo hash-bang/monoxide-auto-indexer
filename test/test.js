@@ -6,6 +6,7 @@ var testSetup = require('./setup');
 describe('monoxide-auto-indexer', function() {
 	before(testSetup.init);
 	after(testSetup.teardown);
+
 	afterEach('clear all hooks', done => {
 		_(monoxide.models).forEach(model => {
 			model.$hooks = _.omitBy(model.$hooks, (v, k) => k.startsWith('autoIndexer.'));

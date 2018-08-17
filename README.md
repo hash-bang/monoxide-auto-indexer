@@ -27,6 +27,7 @@ The module exports a function factory which can take the following settings:
 
 | Setting             | Type     | Default                | Description                                                                                       |
 |---------------------|----------|------------------------|---------------------------------------------------------------------------------------------------|
+| `dryRun`            | Boolean  | `false`                | Don't actually create the indexes in Mongo, just act as though we did                             |
 | `modelFilter`       | Function | (accepts all models)   | Function to filter collections / models - by default all are used                                 |
 | `indexThrottle`     | Number   | `1000*60` (60 seconds) | How often in milliseconds to throttle index queries                                               |
 | `indexResetOnBuild` | Boolean  | `true`                 | Whether to reset the index cache when building a new index                                        |
